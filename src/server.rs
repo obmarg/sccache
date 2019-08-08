@@ -1059,7 +1059,7 @@ where
             let cache_write = cache_write.then(move |result| {
                 match result {
                     Err(e) => {
-                        debug!("Error executing cache write: {}", e);
+                        error!("Error executing cache write: {}", e);
                         me.stats.borrow_mut().cache_write_errors += 1;
                     }
                     //TODO: save cache stats!
