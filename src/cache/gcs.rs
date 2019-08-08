@@ -429,7 +429,7 @@ impl Storage for GCSCache {
                     Ok(Cache::Hit(hit))
                 }
                 Err(e) => {
-                    warn!("Got GCS error: {:?}", e);
+                    debug!("Got GCS error: {:?}", e);
                     Ok(Cache::Miss)
                 }
             }
