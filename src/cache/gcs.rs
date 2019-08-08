@@ -346,8 +346,10 @@ impl GCSCredentialProvider {
             .map_err(Into::into)
             .and_then(move |res| {
                 if res.status().is_success() {
+                    debug!("Got GCS token");
                     Ok(res.into_body())
                 } else {
+                    debug!("Failure getting GCS token: {:?}", res);
                     Err(ErrorKind::BadHTTPStatus(res.status().clone()).into())
                 }
             }).and_then(move |body| {
