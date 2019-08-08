@@ -155,6 +155,7 @@ pub struct GCSCredentialProvider {
 pub enum ServiceAccountInfo {
     URL(String),
     AccountKey(ServiceAccountKey),
+    DefaultServiceAccount,
 }
 
 /// ServiceAccountKey is a subset of the information in the JSON service account credentials.
@@ -192,12 +193,20 @@ struct TokenMsg {
 
 /// AuthResponse represents the json response body from taskcluster-auth.gcsCredentials endpoint
 #[derive(Deserialize)]
-struct AuthResponse {
+struct TaskClusterAuthResponse {
     #[serde(rename = "accessToken")]
     access_token: String,
     #[serde(rename = "expireTime")]
     expire_time: String,
 }
+
+/// GoogleAuthResponse represents the json response body from the google compute metadata
+#[derive(Deserialize)]
+struct GoogleAuthResponse {
+    access_token: String,
+    expires_in: i64,
+}
+
 
 /// RWMode describes whether or not to attempt cache writes.
 #[derive(Copy, Clone)]
@@ -319,10 +328,42 @@ impl GCSCredentialProvider {
                 })
             }).and_then(move |body| {
                 let body_str = String::from_utf8(body)?;
-                let resp: AuthResponse = serde_json::from_str(&body_str)?;
+                let resp: TaskClusterAuthResponse = serde_json::from_str(&body_str)?;
                 Ok(GCSCredential{
                     token: resp.access_token,
                     expiration_time: resp.expire_time.parse()?,
+                })
+            })
+        )
+    }
+
+    fn request_new_token_from_instance_meta(&self, client: &Client) -> SFuture<GCSCredential> {
+        Box::new(
+            client
+            .request(Method::POST, "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token")
+            .header("Metadata-Flavour", "Google")
+            .send()
+            .map_err(Into::into)
+            .and_then(move |res| {
+                if res.status().is_success() {
+                    Ok(res.into_body())
+                } else {
+                    Err(ErrorKind::BadHTTPStatus(res.status().clone()).into())
+                }
+            }).and_then(move |body| {
+                body.fold(Vec::new(), |mut body, chunk| {
+                    body.extend_from_slice(&chunk);
+                    Ok::<_, reqwest::Error>(body)
+                }).chain_err(|| {
+                    "failed to read HTTP body"
+                })
+            }).and_then(move |body| {
+                let body_str = String::from_utf8(body)?;
+                let resp: GoogleAuthResponse = serde_json::from_str(&body_str)?;
+                // TODO: Fix this
+                Ok(GCSCredential{
+                    token: resp.access_token,
+                    expiration_time: chrono::offset::Utc::now() + super::super::time::Duration::seconds(resp.expires_in)
                 })
             })
         )
@@ -341,6 +382,7 @@ impl GCSCredentialProvider {
             let credentials = match self.sa_info {
                 ServiceAccountInfo::AccountKey(ref sa_key) => self.request_new_token(sa_key, client),
                 ServiceAccountInfo::URL(ref url) => self.request_new_token_from_tcauth(url, client),
+                ServiceAccountInfo::DefaultServiceAccount => self.request_new_token_from_instance_meta(client)
             };
             *future_opt = Some(credentials.shared());
         };

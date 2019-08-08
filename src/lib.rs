@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![deny(rust_2018_idioms)]
 #![recursion_limit = "128"]
 
 #[macro_use]
@@ -34,6 +33,7 @@ extern crate log;
 extern crate rouille;
 #[macro_use]
 extern crate serde_derive;
+extern crate time;
 
 // To get macros in scope, this has to be first.
 #[cfg(test)]
