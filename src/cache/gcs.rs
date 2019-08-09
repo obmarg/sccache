@@ -340,7 +340,7 @@ impl GCSCredentialProvider {
     fn request_new_token_from_instance_meta(&self, client: &Client) -> SFuture<GCSCredential> {
         Box::new(
             client
-            .request(Method::POST, "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity")
+            .request(Method::POST, "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token")
             .header("Metadata-Flavour", "Google")
             .send()
             .map_err(Into::into)
